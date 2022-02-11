@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 # Copyright 2016 Abram Hindle, https://github.com/tywtyw2002, and https://github.com/treedust
-# 
+# Copyright 2022 v6k
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -20,7 +20,6 @@
 
 import sys
 import socket
-import re
 # you may use urllib to encode data appropriately
 import urllib.parse
 
@@ -41,13 +40,13 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        return int(data.split("\r\n")[0].split()[1])
 
     def get_headers(self,data):
-        return None
+        return data.split("\r\n\r\n")[0]
 
     def get_body(self, data):
-        return None
+        return data.split("\r\n\r\n")[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -70,11 +69,52 @@ class HTTPClient(object):
     def GET(self, url, args=None):
         code = 500
         body = ""
+        #https://docs.python.org/3/library/urllib.parse.html
+        parsed_url = urllib.parse.urlparse(url)
+        host = parsed_url.hostname
+        port = parsed_url.port
+        path = parsed_url.path
+
+        if not port: port = 80
+        if not path: path = "/"
+
+        self.connect(host,port)
+        self.sendall("GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nUser-Agent: Mozilla/5.1 Firefox/98.0\r\nConnection: close\r\n\r\n")
+        url_response = self.recvall(self.socket)
+        self.close()
+
+        code = self.get_code(url_response)
+        body = self.get_body(url_response)
+        print(code)
+        print(body)
+
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
         code = 500
         body = ""
+
+        parsed_url = urllib.parse.urlparse(url)
+        host = parsed_url.hostname
+        port = parsed_url.port
+        path = parsed_url.path
+
+        if not port: port = 80
+        if not path: path = "/"
+        if not args: args = ""
+        else: args = urllib.parse.urlencode(args)
+
+        self.connect(host,port)
+        self.sendall("POST "+path+" HTTP/1.1\r\nHost: "+host+"\r\nUser-Agent: Mozilla/5.1 Firefox/98.0\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: "+str(len(args))+"\r\nConnection: close\r\n\r\n")        
+        self.sendall(args)
+        url_response = self.recvall(self.socket)
+        self.close()
+
+        code = self.get_code(url_response)
+        body = self.get_body(url_response)
+        print(code)
+        print(body)
+
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
